@@ -139,10 +139,9 @@ namespace MRL.Authenticators
             }
         }
 
-        public bool PrecheckTicket() {
+        public bool PrecheckTicket(out string status) {
             if (String.IsNullOrEmpty(ticketString)) {
-                logger.LogFormat(LogType.Error, "No ticket");
-                clientStatus = "No ticket";
+                 clientStatus = status = "No ticket";
                 return false;
             }
             TimedTicket t = new TimedTicket();
@@ -150,34 +149,31 @@ namespace MRL.Authenticators
                 t.Parse(ticketString);
                 
             } catch (FormatException e) {
-                logger.LogFormat(LogType.Error, "Ticket not valid: {0}, {1}", ticketString, e.ToString());
-                clientStatus = "Ticket badly formatted";
+                clientStatus = status = "Ticket badly formatted";
                 return false;
             }
             DateTime now = DateTime.UtcNow;
             if (!t.ClientCurrentAndValid(eventName, now)) {
                 if (t.eventName != eventName) {
-                    logger.LogFormat(LogType.Error, "Ticket for wrong event: {0}, expect {1}", ticketString, eventName);
-                    clientStatus = "Ticket for wrong event";
+                    clientStatus = status = "Ticket for wrong event";
                 } else if (t.Finished(now)) {
-                    logger.LogFormat(LogType.Error, "Event has finished: {0}, now {1}", ticketString, now);
-                    clientStatus = "Event has finished";
+                    clientStatus = status = "Event has finished";
                 } else if (t.SecondsUntilStart(now)>0) {
-                    logger.LogFormat(LogType.Error, "Event starts in {0} seconds: {1}, now {2}", t.SecondsUntilStart(now), ticketString, now);
-                    clientStatus = "Event hasn't started yet";
+                    clientStatus = status = "Event hasn't started yet";
                 } else {
-                    logger.LogFormat(LogType.Error, "Ticket not current/valid: {0}, now {1}", ticketString, now);
-                    clientStatus = "Ticket not valid";
+                    clientStatus = status = "Ticket not valid";
                 }
                 return false;
             }
-            clientStatus = "Ticket is ready to send";
+            clientStatus = status = "Ticket is ready to send";
             return true;
         }
 
         public override void OnClientAuthenticate(NetworkConnection conn)
         {
-            if ( !PrecheckTicket() ) {
+            string precheckStatus;
+            if ( !PrecheckTicket(out precheckStatus) ) {
+                logger.LogFormat(LogType.Error, "Ticket failed pre-check: {0} for {1}", precheckStatus, ticketString);
                 conn.isAuthenticated = false;
                 // disconnect the client - doing it synchronously hangs!
                 StartCoroutine(DelayedDisconnect(conn, 0.01f));

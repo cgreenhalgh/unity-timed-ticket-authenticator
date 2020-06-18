@@ -38,4 +38,8 @@ For testing, if the server key is set as 'secret' in the client and the ticket i
 ClientUI.js is a simple client GUI that shows how a ticket could be read/used.
 Typically, add it to the same NetworkManager object.
 Note the use of PrecheckTicket to avoid initiating network connections before/after events.
- 
+
+### getting ticket from URL
+
+Note, the sample client will set the ticket from the URL parameter 'ticket' if built for WebGL. This uses the javascript native plugin Plugins/jshelpers.jslib.
+

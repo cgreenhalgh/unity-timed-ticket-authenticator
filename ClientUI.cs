@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using Mirror;
 using MRL.Authenticators;
+using System.Web;
+using System.Runtime.InteropServices;
 
 public class ClientUI : MonoBehaviour
 {
@@ -40,18 +42,18 @@ public class ClientUI : MonoBehaviour
         if (!NetworkClient.isConnected) {
             if (!NetworkClient.active)
             {
-                GUILayout.BeginHorizontal();
+                GUILayout.Label("Ticket:", label);
                 ticket = GUILayout.TextField(ticket /*, label*/);
                 //Debug.Log(String.Format("Ticket: {0}", ticket));
                 if (tta != null && !String.IsNullOrEmpty(ticket)) {
                     tta.ticketString = ticket;
                 }
-                if (tta.PrecheckTicket() && GUILayout.Button("Join with ticket", button))
+                string precheckStatus;
+                if (tta.PrecheckTicket(out precheckStatus) && GUILayout.Button("Join with ticket", button))
                 {
                     Debug.Log("Start client with ticket "+ticket);
                     manager.StartClient(new Uri(serverUri));
                 }
-                GUILayout.EndHorizontal();
             }
             else
             {
@@ -72,10 +74,34 @@ public class ClientUI : MonoBehaviour
         GUILayout.EndArea();
     }
     
+    #if (UNITY_WEBGL && !UNITY_EDITOR)
+    // NB this is webgl-specific, to access browser URL, and is in
+    // Assets/Plugins/jshelpers.jslib
+    [DllImport("__Internal")]
+    private static extern string getWindowLocation();
+    #endif
+    
     // Start is called before the first frame update
     void Start()
     {
-        
+        #if (UNITY_WEBGL && !UNITY_EDITOR)
+        string location = getWindowLocation();
+        Debug.Log(String.Format("Window location = {0}", location));
+        try {
+            Uri url = new Uri(location);
+            string ticket = HttpUtility.ParseQueryString(url.Query).Get("ticket");
+            if (!String.IsNullOrEmpty(ticket)) {
+                Debug.Log(String.Format("ticket = {0}", ticket));
+                if (tta == null) {
+                    tta =  GetComponent<TimedTicketAuthenticator>();
+                }
+                tta.ticketString = ticket;
+            }
+        }
+        catch (Exception e) {
+            Debug.Log(String.Format("Error processing url {0}: {1}", location, e));
+        }
+        #endif
     }
 
     // Update is called once per frame
