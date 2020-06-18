@@ -39,6 +39,8 @@ ClientUI.js is a simple client GUI that shows how a ticket could be read/used.
 Typically, add it to the same NetworkManager object.
 Note the use of PrecheckTicket to avoid initiating network connections before/after events.
 
+Also note that the sample client uses NetworkManager.StartClient(uri) with its own serverUri value rather than the NetworkManager default URL. This is needed (e.g.) to specify a path for the websocket client transport (the NetworkManager default is then still used for the server). 
+
 ### getting ticket from URL
 
 Note, the sample client will set the ticket from the URL parameter 'ticket' if built for WebGL. This uses the javascript native plugin Plugins/jshelpers.jslib.

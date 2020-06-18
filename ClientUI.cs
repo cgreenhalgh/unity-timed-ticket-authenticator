@@ -21,6 +21,10 @@ public class ClientUI : MonoBehaviour
     /// </summary>
     public int offsetY;
 
+    /// <summary>
+    /// Server Uri for client connect (does not use NetworkManager default)
+    /// e.g. to include websocket path component.
+    /// </summary>
     public string serverUri;
     
     string ticket;
