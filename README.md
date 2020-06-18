@@ -33,4 +33,9 @@ Tickets look like `x-ticket:1:intothedepths:20200618T160000Z:3600:1:XYZ`, where 
 
 For testing, if the server key is set as 'secret' in the client and the ticket is rejected then the client will print a correctly signed key on the debug console.
 
+## sample client
+
+ClientUI.js is a simple client GUI that shows how a ticket could be read/used.
+Typically, add it to the same NetworkManager object.
+Note the use of PrecheckTicket to avoid initiating network connections before/after events.
  

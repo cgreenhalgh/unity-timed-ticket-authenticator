@@ -184,7 +184,7 @@ namespace MRL.Authenticators
         /// finished
         /// </summary>
         public bool Finished(DateTime now) {
-            double t = startTime.Subtract(now).TotalSeconds;
+            double t = now.Subtract(startTime).TotalSeconds;
             return t>=durationSeconds;
         }
         /// <summary>

@@ -39,6 +39,8 @@ namespace MRL.Authenticators
         [Tooltip("Ticket (client) - normally set dynamically.")]
         public string ticketString;
 
+        public string clientStatus = "Waiting for ticket";
+        
         [Header("Server Properties")]
         
         /// <summary>
@@ -123,6 +125,7 @@ namespace MRL.Authenticators
 
         public override void OnStartClient()
         {
+            clientStatus = "Connecting";
             // register a handler for the authentication response we expect from server
             NetworkClient.RegisterHandler<AuthResponseMessage>(OnAuthResponseMessage, false);
         }
@@ -136,14 +139,11 @@ namespace MRL.Authenticators
             }
         }
 
-        public override void OnClientAuthenticate(NetworkConnection conn)
-        {
+        public bool PrecheckTicket() {
             if (String.IsNullOrEmpty(ticketString)) {
                 logger.LogFormat(LogType.Error, "No ticket");
-                conn.isAuthenticated = false;
-                // disconnect the client
-                conn.Disconnect();
-                return;
+                clientStatus = "No ticket";
+                return false;
             }
             TimedTicket t = new TimedTicket();
             try {
@@ -151,27 +151,39 @@ namespace MRL.Authenticators
                 
             } catch (FormatException e) {
                 logger.LogFormat(LogType.Error, "Ticket not valid: {0}, {1}", ticketString, e.ToString());
-                conn.isAuthenticated = false;
-                // disconnect the client
-                conn.Disconnect();
-                return;
+                clientStatus = "Ticket badly formatted";
+                return false;
             }
             DateTime now = DateTime.UtcNow;
             if (!t.ClientCurrentAndValid(eventName, now)) {
                 if (t.eventName != eventName) {
                     logger.LogFormat(LogType.Error, "Ticket for wrong event: {0}, expect {1}", ticketString, eventName);
+                    clientStatus = "Ticket for wrong event";
                 } else if (t.Finished(now)) {
                     logger.LogFormat(LogType.Error, "Event has finished: {0}, now {1}", ticketString, now);
+                    clientStatus = "Event has finished";
                 } else if (t.SecondsUntilStart(now)>0) {
                     logger.LogFormat(LogType.Error, "Event starts in {0} seconds: {1}, now {2}", t.SecondsUntilStart(now), ticketString, now);
+                    clientStatus = "Event hasn't started yet";
                 } else {
                     logger.LogFormat(LogType.Error, "Ticket not current/valid: {0}, now {1}", ticketString, now);
+                    clientStatus = "Ticket not valid";
                 }
+                return false;
+            }
+            clientStatus = "Ticket is ready to send";
+            return true;
+        }
+
+        public override void OnClientAuthenticate(NetworkConnection conn)
+        {
+            if ( !PrecheckTicket() ) {
                 conn.isAuthenticated = false;
-                // disconnect the client
-                conn.Disconnect();
+                // disconnect the client - doing it synchronously hangs!
+                StartCoroutine(DelayedDisconnect(conn, 0.01f));
                 return;
             }
+            clientStatus = "Checking ticket";
             // proceed
             AuthRequestMessage authRequestMessage = new AuthRequestMessage
             {
@@ -195,10 +207,10 @@ namespace MRL.Authenticators
             }
             return val;
         }
+        
         public void OnAuthRequestMessage(NetworkConnection conn, AuthRequestMessage msg)
         {
             if (logger.LogEnabled()) logger.LogFormat(LogType.Log, "Authentication Request: ticket {0}", msg.ticketString);
-
             TimedTicket t = new TimedTicket();
             try {
                 t.Parse(msg.ticketString);
@@ -290,14 +302,15 @@ namespace MRL.Authenticators
             if (msg.code == 100)
             {
                 if (logger.LogEnabled()) logger.LogFormat(LogType.Log, "Authentication Response: {0}", msg.message);
-
+                clientStatus = "Ticket accepted";
                 // Invoke the event to complete a successful authentication
                 OnClientAuthenticated.Invoke(conn);
             }
             else
             {
                 logger.LogFormat(LogType.Error, "Authentication Response: {0}", msg.message);
-
+                clientStatus = String.Format("Ticket rejected ({0})", msg.message);
+                
                 // Set this on the client for local reference
                 conn.isAuthenticated = false;
 
