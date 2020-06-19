@@ -37,14 +37,14 @@ namespace MRL.Authenticators
         public DateTime startTime;
         
         /// <summary>
-        /// duration (seconds)
+        /// duration (minutes)
         /// </summary>
-        public double durationSeconds;
+        public double durationMinutes;
         
         /// <summary>
-        /// seat number (counts from 1)
+        /// seat number (normally counts from 1; * allows multiple)
         /// </summary>
-        public int seat;
+        public string seat;
         
         /// <summary>
         /// ticket check string
@@ -69,7 +69,7 @@ namespace MRL.Authenticators
         
         public static readonly string DATE_FORMAT = "yyyyMMdd'T'HHmmssK";
         public override string ToString() {
-            string basic = String.Format("{0}:{1}:{2}:{3}:{4}:{5}:{6}", SCHEME, Uri.EscapeDataString(version), Uri.EscapeDataString(eventName), startTime.ToUniversalTime().ToString(DATE_FORMAT), durationSeconds, seat, Uri.EscapeDataString(check));
+            string basic = String.Format("{0}:{1}:{2}:{3}:{4}:{5}:{6}", SCHEME, Uri.EscapeDataString(version), Uri.EscapeDataString(eventName), startTime.ToUniversalTime().ToString(DATE_FORMAT), durationMinutes, Uri.EscapeDataString(seat), Uri.EscapeDataString(check));
             if (serverUrl != null) {
                 string url = serverUrl.ToString();
                 if (url.StartsWith(DEFAULT_SERVER_URL_SCHEME)) {
@@ -110,8 +110,8 @@ namespace MRL.Authenticators
             eventName = Uri.UnescapeDataString(rmatch.Groups[1].Value);
             // also throws FormatException
             startTime = DateTime.ParseExact(rmatch.Groups[2].Value, DATE_FORMAT, System.Globalization.CultureInfo.InvariantCulture).ToUniversalTime();
-            durationSeconds = Convert.ToDouble(Uri.UnescapeDataString(rmatch.Groups[3].Value));
-            seat = Convert.ToInt32(Uri.UnescapeDataString(rmatch.Groups[4].Value));
+            durationMinutes = Convert.ToDouble(Uri.UnescapeDataString(rmatch.Groups[3].Value));
+            seat = Uri.UnescapeDataString(rmatch.Groups[4].Value);
             check = Uri.UnescapeDataString(rmatch.Groups[5].Value);
             string scheme = rmatch.Groups[7].Value;
             if (scheme.Length == 0) {
@@ -130,11 +130,16 @@ namespace MRL.Authenticators
         // internal - calculate check value using provided key
         string GetCheck(string key) {
             // no URL, empty check
-            string basic = String.Format("{0}:{1}:{2}:{3}:{4}:{5}:{6}", SCHEME, Uri.EscapeDataString(version), Uri.EscapeDataString(eventName), startTime.ToUniversalTime().ToString(DATE_FORMAT), durationSeconds, seat, "");
+            string basic = String.Format("{0}:{1}:{2}:{3}:{4}:{5}:{6}", SCHEME, Uri.EscapeDataString(version), Uri.EscapeDataString(eventName), startTime.ToUniversalTime().ToString(DATE_FORMAT), durationMinutes, Uri.EscapeDataString(seat), "");
             // MD5 - enough? supported in Web?
             HMACMD5 hmac = new HMACMD5(System.Text.Encoding.UTF8.GetBytes(key));
             byte []hash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(basic));
-            return Convert.ToBase64String(hash);
+            // strip trailing '='s
+            string base64 = Convert.ToBase64String(hash);
+            while (base64.EndsWith("=")) {
+                base64 = base64.Substring(0, base64.Length-1);
+            }
+            return base64;
         }
         
         /// <summary>
@@ -170,22 +175,22 @@ namespace MRL.Authenticators
         /// check ticket time
         /// </summary>
         public bool Current(DateTime now) {
-            double t = now.Subtract(startTime).TotalSeconds;
-            return t>=0 && t<=durationSeconds;
+            double t = now.Subtract(startTime).TotalMinutes;
+            return t>=0 && t<=durationMinutes;
         }
         /// <summary>
         /// time until start (or 0)
         /// </summary>
-        public double SecondsUntilStart(DateTime now) {
-            double t = startTime.Subtract(now).TotalSeconds;
+        public double MinutesUntilStart(DateTime now) {
+            double t = startTime.Subtract(now).TotalMinutes;
             return t<0 ? 0 : t;
         }
         /// <summary>
         /// finished
         /// </summary>
         public bool Finished(DateTime now) {
-            double t = now.Subtract(startTime).TotalSeconds;
-            return t>=durationSeconds;
+            double t = now.Subtract(startTime).TotalMinutes;
+            return t>=durationMinutes;
         }
         /// <summary>
         /// Could be ok (client check without signature)
@@ -213,12 +218,12 @@ namespace MRL.Authenticators
         }
         /// return a new signed ticket string
         /// </summary>
-        public static string MakeTicket(string eventName, DateTime startTime, double durationSeconds, int seat, Uri serverUrl, string key) {
+        public static string MakeTicket(string eventName, DateTime startTime, double durationMinutes, string seat, Uri serverUrl, string key) {
             TimedTicket t = new TimedTicket();
             t.version = CURRENT_VERSION;
             t.eventName = eventName;
             t.startTime = startTime.ToUniversalTime();
-            t.durationSeconds = durationSeconds;
+            t.durationMinutes = durationMinutes;
             t.seat = seat;
             t.serverUrl = serverUrl;
             t.Sign(key);
