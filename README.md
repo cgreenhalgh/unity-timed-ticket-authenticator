@@ -5,7 +5,7 @@ Chris Greenhalgh, The University of Nottingham, 2020.
 This is an Authenticator for the Mirror networking system for Unity.
 
 status: 
-- seemed ok, but client seems to be hanging at the moment.
+- seemed ok, but relatively untested, especially with many clients
 
 ## use
 
